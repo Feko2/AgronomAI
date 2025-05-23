@@ -7,7 +7,6 @@ AgroApp is a full-stack web application designed to monitor and analyze agricult
 - **Real-time Sensor Monitoring**: Track humidity, nitrogen levels, and pH across multiple parcels
 - **AI-Powered Insights**: Generate intelligent recommendations based on sensor data
 - **Interactive Dashboard**: Modern, responsive web interface built with React
-- **Data Visualization**: Charts and graphs for trend analysis
 - **Multi-parcel Management**: Monitor different agricultural areas separately
 - **Oracle ATP Integration**: Secure cloud database connectivity
 
@@ -39,7 +38,7 @@ AgroApp is a full-stack web application designed to monitor and analyze agricult
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/agroapp.git
+   git clone https://github.com/Feko2/AgronomAI.git
    cd agroapp
    ```
 
@@ -69,7 +68,7 @@ AgroApp is a full-stack web application designed to monitor and analyze agricult
 
 ### Running the Application
 
-#### Development Mode
+#### Development Mode ---> ./run-all.bat dev
 
 1. **Start the Backend**
    ```bash
@@ -87,7 +86,7 @@ AgroApp is a full-stack web application designed to monitor and analyze agricult
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:8080
 
-#### Production Build
+#### Production Build ---> ./run-all.bat prod
 
 1. **Build Frontend**
    ```bash
