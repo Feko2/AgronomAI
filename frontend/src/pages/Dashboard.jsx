@@ -1,153 +1,198 @@
-import { useEffect, useState } from 'react';
-import { fetchSensorData } from '../services/api';
-
-// Components
-import KpiCard from '../components/KpiCard';
-import SensorCard from '../components/SensorCard';
-import AiInsights from '../components/AiInsights';
+import React, { useState, useEffect } from 'react';
+import { fetchSensorData, fetchParcelas } from '../services/api';
+import ParcelaCard from '../components/ParcelaCard';
+import InsightsPanel from '../components/InsightsPanel';
+import DataControls from '../components/DataControls';
 
 export default function Dashboard() {
   const [sensors, setSensors] = useState([]);
-  const [error, setError] = useState(null);
+  const [parcelas, setParcelas] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('resumen');
+  const [selectedParcela, setSelectedParcela] = useState('');
 
   useEffect(() => {
-    setLoading(true);
-    fetchSensorData()
-      .then(res => {
-        console.log('API Response:', res);
-        console.log('Data received:', res.data);
-        setSensors(res.data || []);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Error fetching data:', err);
-        setError(err.message);
-        setLoading(false);
-      });
+    loadDashboardData();
   }, []);
 
-  // Calculate KPI values
-  const averageHumidity = sensors.length > 0 
-    ? sensors.reduce((sum, s) => sum + (s.humedad || 0), 0) / sensors.length
-    : 0;
-  
-  const averageNitrogen = sensors.length > 0 
-    ? sensors.reduce((sum, s) => sum + (s.nitrogeno || 0), 0) / sensors.length
-    : 0;
-  
-  const averagePh = sensors.length > 0 
-    ? sensors.reduce((sum, s) => sum + (s.ph || 0), 0) / sensors.length
-    : 0;
-  
-  const parcelas = [...new Set(sensors.map(s => s.parcelaId))].filter(Boolean).length;
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [sensorsResponse, parcelasResponse] = await Promise.all([
+        fetchSensorData(),
+        fetchParcelas()
+      ]);
+      
+      console.log('Sensors loaded:', sensorsResponse.data?.length || 0);
+      console.log('Parcelas loaded:', parcelasResponse.data?.length || 0);
+      
+      setSensors(sensorsResponse.data || []);
+      setParcelas(parcelasResponse.data || []);
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError('Error al cargar los datos del dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Filter data based on selected filter
-  const filteredSensors = filter === 'all' 
-    ? sensors 
-    : sensors.filter(s => s.parcelaId && s.parcelaId === filter);
+  // Agrupar sensores por parcela
+  const getSensorsByParcela = (parcelaId) => {
+    return sensors.filter(sensor => sensor.parcelaId === parcelaId);
+  };
 
-  return (
-    <div className="space-y-6">
-      {/* Page header */}
-      <div>
-        <h2 className="text-2xl font-bold text-white">Dashboard de Monitoreo</h2>
-        <p className="text-agro-dark-400 mt-1">Vista general de las métricas de cultivos</p>
-      </div>
+  // Filtrar parcelas según selección
+  const filteredParcelas = selectedParcela === '' || selectedParcela === 'all' 
+    ? parcelas 
+    : parcelas.filter(p => p.parcelaId === selectedParcela);
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard 
-          title="Humedad Promedio" 
-          value={`${averageHumidity.toFixed(1)}%`} 
-          icon="humidity"
-          trend="up"
-          trendValue="3.2%"
-          color="blue" 
-        />
-        <KpiCard 
-          title="Nitrógeno Promedio" 
-          value={averageNitrogen.toFixed(1)}
-          icon="nitrogen"
-          trend="down"
-          trendValue="1.8%"
-          color="green" 
-        />
-        <KpiCard 
-          title="pH Promedio" 
-          value={averagePh.toFixed(1)}
-          icon="ph"
-          trend="stable"
-          trendValue="0.1"
-          color="amber" 
-        />
-        <KpiCard 
-          title="Parcelas Monitoreadas" 
-          value={parcelas}
-          icon="parcels"
-          color="indigo" 
-        />
-      </div>
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'resumen':
+        return (
+          <div>
+            {/* Filtro de Parcelas */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-agro-dark-300 mb-2">
+                Filtrar por parcela:
+              </label>
+              <select
+                value={selectedParcela}
+                onChange={(e) => setSelectedParcela(e.target.value)}
+                className="bg-agro-dark-800 text-white border border-agro-dark-600 rounded-lg px-3 py-2 w-64"
+              >
+                <option value="">Todas las parcelas</option>
+                {parcelas.map(parcela => (
+                  <option key={parcela.parcelaId} value={parcela.parcelaId}>
+                    {parcela.nombre} ({parcela.tipoCultivo})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-      {/* Main content area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sensor cards - 2/3 width on lg screens */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-agro-dark-900 rounded-xl shadow p-4">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-              <h3 className="text-lg font-medium text-white">Lecturas de Sensores</h3>
-              
-              {/* Filter dropdown - moved here */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-agro-dark-300">Filtrar por parcela:</span>
-                <select 
-                  className="px-3 py-2 rounded-lg bg-agro-dark-700 border border-agro-dark-600 text-white text-sm focus:outline-none focus:ring-1 focus:ring-agro-green-600"
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                >
-                  <option value="all">Todas las parcelas</option>
-                  {[...new Set(sensors.map(s => s.parcelaId))].filter(Boolean).map((parcelaId) => (
-                    <option key={parcelaId} value={parcelaId}>
-                      {parcelaId}
-                    </option>
-                  ))}
-                </select>
+            {/* Grid de Parcelas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredParcelas.map(parcela => (
+                <ParcelaCard
+                  key={parcela.parcelaId}
+                  parcela={parcela}
+                  sensorData={getSensorsByParcela(parcela.parcelaId)}
+                />
+              ))}
+            </div>
+
+            {filteredParcelas.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-gray-400 text-lg">
+                  {parcelas.length === 0 ? 'No hay parcelas registradas' : 'No se encontraron parcelas'}
+                </div>
+                <p className="text-gray-500 mt-2">
+                  {parcelas.length === 0 ? 'Genera datos de muestra para comenzar' : 'Ajusta tu filtro o selecciona otra parcela'}
+                </p>
+              </div>
+            )}
+
+            {/* Debug Info */}
+            <div className="mt-8 p-4 bg-agro-dark-900 rounded-lg">
+              <h4 className="text-white font-medium mb-2">Estado del Sistema:</h4>
+              <div className="text-sm text-agro-dark-300 space-y-1">
+                <p>• Parcelas en base de datos: {parcelas.length}</p>
+                <p>• Lecturas de sensores: {sensors.length}</p>
+                <p>• Filtro activo: {selectedParcela || 'Todas las parcelas'}</p>
+                <p>• Parcelas mostradas: {filteredParcelas.length}</p>
               </div>
             </div>
-            
-            {error && (
-              <div className="bg-red-900/20 border border-red-900/30 text-red-400 p-3 rounded-lg mb-4">
-                Error: {error}
-              </div>
-            )}
-            
-            {loading ? (
-              <div className="flex justify-center items-center h-40">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-agro-green-500"></div>
-              </div>
-            ) : (
-              <>
-                {filteredSensors.length === 0 ? (
-                  <div className="text-center py-10 text-agro-dark-400">
-                    No hay datos de sensores disponibles.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {filteredSensors.map((sensor, index) => (
-                      <SensorCard key={sensor.id || `sensor-${index}`} sensor={sensor} />
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
+          </div>
+        );
+      
+      case 'insights':
+        return <InsightsPanel />;
+      
+      case 'controles':
+        return <DataControls onDataGenerated={loadDashboardData} />;
+      
+      default:
+        return null;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-agro-dark-950 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-agro-green-400 mx-auto"></div>
+            <p className="text-gray-400 mt-4">Cargando dashboard...</p>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* AI Insights - 1/3 width on lg screens */}
-        <div className="lg:col-span-1">
-          <AiInsights sensors={sensors} />
+  if (error) {
+    return (
+      <div className="min-h-screen bg-agro-dark-950 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center py-12">
+            <div className="text-red-400 text-xl mb-4">⚠️ Error</div>
+            <p className="text-gray-400">{error}</p>
+            <button
+              onClick={loadDashboardData}
+              className="mt-4 bg-agro-green-600 hover:bg-agro-green-700 text-white px-4 py-2 rounded-lg"
+            >
+              Reintentar
+            </button>
+          </div>
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-agro-dark-950">
+      {/* Header */}
+      <div className="bg-agro-dark-900 border-b border-agro-dark-700">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-white">🌱 AgroApp</h1>
+              <p className="text-agro-dark-300">Sistema integral de monitoreo agrícola con análisis por IA</p>
+            </div>
+            <div className="text-sm text-agro-dark-400">
+              {parcelas.length} parcelas • {sensors.length} lecturas
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="mt-6">
+            <nav className="flex space-x-4">
+              {[
+                { id: 'resumen', label: 'Resumen', icon: '📊' },
+                { id: 'insights', label: 'Insights AI', icon: '🤖' },
+                { id: 'controles', label: 'Controles', icon: '⚙️' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-agro-green-600 text-white'
+                      : 'text-agro-dark-300 hover:text-white hover:bg-agro-dark-800'
+                  }`}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-7xl mx-auto p-6">
+        {renderContent()}
       </div>
     </div>
   );

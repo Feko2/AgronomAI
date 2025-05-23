@@ -25,4 +25,49 @@ public class InsightsController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    @GetMapping
+    public ResponseEntity<List<Map<String, Object>>> getGeneralInsights() {
+        try {
+            List<Map<String, Object>> insights = insightsService.getGeneralInsights();
+            return ResponseEntity.ok(insights);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/parcela/{parcelaId}")
+    public ResponseEntity<Map<String, Object>> getParcelaInsights(@PathVariable String parcelaId) {
+        try {
+            Map<String, Object> insights = insightsService.getParcelaInsights(parcelaId);
+            return ResponseEntity.ok(insights);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/report/{parcelaId}")
+    public ResponseEntity<Map<String, Object>> getDetailedReport(@PathVariable String parcelaId) {
+        try {
+            Map<String, Object> report = insightsService.generateDetailedReport(parcelaId);
+            return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/export/{parcelaId}")
+    public ResponseEntity<Map<String, Object>> exportReport(@PathVariable String parcelaId, 
+                                                           @RequestParam(defaultValue = "json") String format) {
+        try {
+            Map<String, Object> exportData = insightsService.exportReport(parcelaId, format);
+            return ResponseEntity.ok(exportData);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 } 

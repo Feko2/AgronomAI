@@ -4,27 +4,39 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "SENSOR_READINGS")
+@Table(name = "sensor_readings")
 public class SensorData {
     
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "sensor_seq")
+    @SequenceGenerator(name = "sensor_seq", sequenceName = "sensor_readings_seq", allocationSize = 1)
     private Long id;
     
-    @Column(name = "PARCELA_ID")
+    @Column(name = "parcela_id")
     private String parcelaId;
     
-    @Column(name = "HUMEDAD")
     private Double humedad;
-    
-    @Column(name = "NITROGENO")
     private Double nitrogeno;
-    
-    @Column(name = "PH")
     private Double ph;
-    
-    @Column(name = "FECHA")
+    private Double temperatura;
+    private Double luminosidad;
     private LocalDateTime fecha;
+    private String estado; // NORMAL, ALERTA, CRITICO
+
+    // Constructores
+    public SensorData() {}
+
+    public SensorData(String parcelaId, Double humedad, Double nitrogeno, Double ph, 
+                     Double temperatura, Double luminosidad, LocalDateTime fecha) {
+        this.parcelaId = parcelaId;
+        this.humedad = humedad;
+        this.nitrogeno = nitrogeno;
+        this.ph = ph;
+        this.temperatura = temperatura;
+        this.luminosidad = luminosidad;
+        this.fecha = fecha;
+        this.estado = "NORMAL";
+    }
 
     // Getters and Setters
     public Long getId() {
@@ -67,11 +79,41 @@ public class SensorData {
         this.ph = ph;
     }
 
+    public Double getTemperatura() {
+        return temperatura;
+    }
+
+    public void setTemperatura(Double temperatura) {
+        this.temperatura = temperatura;
+    }
+
+    public Double getLuminosidad() {
+        return luminosidad;
+    }
+
+    public void setLuminosidad(Double luminosidad) {
+        this.luminosidad = luminosidad;
+    }
+
     public LocalDateTime getFecha() {
         return fecha;
     }
 
     public void setFecha(LocalDateTime fecha) {
         this.fecha = fecha;
+    }
+
+    public String getEstado() {
+        return estado;
+    }
+
+    public void setEstado(String estado) {
+        this.estado = estado;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("SensorData{id=%d, parcelaId='%s', humedad=%.1f, nitrogeno=%.1f, ph=%.2f, fecha=%s}",
+                id, parcelaId, humedad, nitrogeno, ph, fecha);
     }
 } 
