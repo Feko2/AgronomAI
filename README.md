@@ -70,6 +70,11 @@ AgroApp is a full-stack web application designed to monitor and analyze agricult
 
 #### Development Mode ---> ./run-all.bat dev
 
+**QUICKSTART DEV MODE (Local db H2)**
+```bash
+.\run-all.bat dev 
+```
+
 1. **Start the Backend**
    ```bash
    mvn spring-boot:run
@@ -87,6 +92,11 @@ AgroApp is a full-stack web application designed to monitor and analyze agricult
    - Backend API: http://localhost:8080
 
 #### Production Build ---> ./run-all.bat prod
+
+**QUICKSTART PRODUCTION (OCI config necessary)**
+```bash
+.\run-all.bat prod 
+```
 
 1. **Build Frontend**
    ```bash
