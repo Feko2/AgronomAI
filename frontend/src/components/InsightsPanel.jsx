@@ -5,6 +5,7 @@ const InsightsPanel = ({ selectedParcelaId = null }) => {
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [exportingReports, setExportingReports] = useState(new Set()); // Track which reports are being exported
 
   useEffect(() => {
     loadInsights();
@@ -32,26 +33,34 @@ const InsightsPanel = ({ selectedParcelaId = null }) => {
   };
 
   const handleExportReport = async (parcelaId) => {
+    // Check if this report is already being generated
+    if (exportingReports.has(parcelaId)) {
+      return;
+    }
+
+    // Add to exporting set
+    setExportingReports(prev => new Set([...prev, parcelaId]));
+
     try {
-      const response = await exportReport(parcelaId, 'json');
+      // Show immediate feedback
+      showToast('🧠 Generando reporte con análisis de IA...', 'info');
       
-      // Generate AI Analysis
-      const aiAnalysis = generateAIAnalysis(response.data.data);
+      const response = await exportReport(parcelaId, 'markdown');
       
-      // Create comprehensive report with AI insights
-      const fullReport = {
-        metadata: {
-          parcelaId: parcelaId,
-          fechaGeneracion: new Date().toISOString(),
-          tipoReporte: 'Análisis Completo con IA'
-        },
-        analisisIA: aiAnalysis,
-        datosOriginales: response.data.data
-      };
+      if (response.data.error) {
+        throw new Error(response.data.error);
+      }
+
+      // Obtener el contenido Markdown del backend
+      const markdownContent = response.data.content;
+      const filename = response.data.filename;
       
-      const filename = `reporte-ia-${parcelaId}-${new Date().toISOString().split('T')[0]}.json`;
-      const dataStr = JSON.stringify(fullReport, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      if (!markdownContent) {
+        throw new Error('No se pudo generar el contenido del reporte');
+      }
+
+      // Crear y descargar el archivo Markdown
+      const dataBlob = new Blob([markdownContent], { type: 'text/markdown' });
       
       const url = URL.createObjectURL(dataBlob);
       const link = document.createElement('a');
@@ -62,218 +71,38 @@ const InsightsPanel = ({ selectedParcelaId = null }) => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
-      alert('✅ Reporte con análisis de IA generado exitosamente');
+      showToast('✅ Reporte agronómico generado exitosamente', 'success');
     } catch (err) {
       console.error('Error exporting report:', err);
-      alert('Error al exportar reporte');
+      showToast(`❌ Error: ${err.message}`, 'error');
+    } finally {
+      // Remove from exporting set
+      setExportingReports(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(parcelaId);
+        return newSet;
+      });
     }
   };
 
-  const generateAIAnalysis = (data) => {
-    if (!data || !data.lecturas || data.lecturas.length === 0) {
-      return {
-        resumen: 'No hay datos suficientes para realizar análisis',
-        recomendaciones: ['Generar más datos de sensores'],
-        estado: 'INSUFICIENTE'
-      };
-    }
-
-    const lecturas = data.lecturas;
-    const parcela = data.parcela;
+  const showToast = (message, type) => {
+    // Create toast notification
+    const toast = document.createElement('div');
+    toast.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${
+      type === 'success' ? 'bg-green-600 text-white' :
+      type === 'error' ? 'bg-red-600 text-white' :
+      'bg-blue-600 text-white'
+    }`;
+    toast.textContent = message;
     
-    // Calcular promedios
-    const promedios = {
-      humedad: (lecturas.reduce((sum, l) => sum + l.humedad, 0) / lecturas.length).toFixed(2),
-      ph: (lecturas.reduce((sum, l) => sum + l.ph, 0) / lecturas.length).toFixed(2),
-      nitrogeno: (lecturas.reduce((sum, l) => sum + l.nitrogeno, 0) / lecturas.length).toFixed(2),
-      temperatura: (lecturas.reduce((sum, l) => sum + l.temperatura, 0) / lecturas.length).toFixed(2)
-    };
-
-    // Análisis de tendencias (últimos 3 días vs anteriores)
-    const fechaCorte = new Date();
-    fechaCorte.setDate(fechaCorte.getDate() - 3);
+    document.body.appendChild(toast);
     
-    const lecturasRecientes = lecturas.filter(l => new Date(l.fecha) >= fechaCorte);
-    const lecturasAnteriores = lecturas.filter(l => new Date(l.fecha) < fechaCorte);
-    
-    let tendencias = {};
-    if (lecturasRecientes.length > 0 && lecturasAnteriores.length > 0) {
-      const promediosRecientes = {
-        humedad: lecturasRecientes.reduce((sum, l) => sum + l.humedad, 0) / lecturasRecientes.length,
-        ph: lecturasRecientes.reduce((sum, l) => sum + l.ph, 0) / lecturasRecientes.length,
-        nitrogeno: lecturasRecientes.reduce((sum, l) => sum + l.nitrogeno, 0) / lecturasRecientes.length,
-        temperatura: lecturasRecientes.reduce((sum, l) => sum + l.temperatura, 0) / lecturasRecientes.length
-      };
-      
-      const promediosAnteriores = {
-        humedad: lecturasAnteriores.reduce((sum, l) => sum + l.humedad, 0) / lecturasAnteriores.length,
-        ph: lecturasAnteriores.reduce((sum, l) => sum + l.ph, 0) / lecturasAnteriores.length,
-        nitrogeno: lecturasAnteriores.reduce((sum, l) => sum + l.nitrogeno, 0) / lecturasAnteriores.length,
-        temperatura: lecturasAnteriores.reduce((sum, l) => sum + l.temperatura, 0) / lecturasAnteriores.length
-      };
-
-      tendencias = {
-        humedad: ((promediosRecientes.humedad - promediosAnteriores.humedad) / promediosAnteriores.humedad * 100).toFixed(1),
-        ph: ((promediosRecientes.ph - promediosAnteriores.ph) / promediosAnteriores.ph * 100).toFixed(1),
-        nitrogeno: ((promediosRecientes.nitrogeno - promediosAnteriores.nitrogeno) / promediosAnteriores.nitrogeno * 100).toFixed(1),
-        temperatura: ((promediosRecientes.temperatura - promediosAnteriores.temperatura) / promediosAnteriores.temperatura * 100).toFixed(1)
-      };
-    }
-
-    // Evaluación de condiciones según cultivo
-    const evaluacion = evaluarCondicionesCultivo(parcela.tipoCultivo, promedios);
-    
-    // Generar recomendaciones inteligentes
-    const recomendaciones = generarRecomendaciones(parcela.tipoCultivo, promedios, tendencias, evaluacion);
-    
-    return {
-      resumen: `Análisis de ${lecturas.length} lecturas para parcela ${parcela.nombre} (${parcela.tipoCultivo})`,
-      promedios: promedios,
-      tendencias: tendencias,
-      evaluacion: evaluacion,
-      recomendaciones: recomendaciones,
-      estado: evaluacion.estadoGeneral,
-      fechaAnalisis: new Date().toISOString(),
-      alertas: generarAlertas(promedios, tendencias)
-    };
-  };
-
-  const evaluarCondicionesCultivo = (cultivo, promedios) => {
-    // Rangos óptimos por cultivo
-    const rangosOptimos = {
-      'Maíz': { humedad: [60, 80], ph: [6.0, 7.0], nitrogeno: [120, 180], temperatura: [20, 30] },
-      'Trigo': { humedad: [50, 70], ph: [6.5, 7.5], nitrogeno: [100, 150], temperatura: [15, 25] },
-      'Soja': { humedad: [55, 75], ph: [6.0, 7.0], nitrogeno: [80, 120], temperatura: [18, 28] },
-      'Arroz': { humedad: [80, 95], ph: [5.5, 6.5], nitrogeno: [150, 200], temperatura: [22, 32] }
-    };
-
-    const rangos = rangosOptimos[cultivo] || rangosOptimos['Maíz']; // Default a Maíz
-    
-    const evaluaciones = {
-      humedad: evaluarParametro(parseFloat(promedios.humedad), rangos.humedad),
-      ph: evaluarParametro(parseFloat(promedios.ph), rangos.ph),
-      nitrogeno: evaluarParametro(parseFloat(promedios.nitrogeno), rangos.nitrogeno),
-      temperatura: evaluarParametro(parseFloat(promedios.temperatura), rangos.temperatura)
-    };
-
-    // Calcular estado general
-    const estados = Object.values(evaluaciones);
-    const excelentes = estados.filter(e => e === 'EXCELENTE').length;
-    const buenos = estados.filter(e => e === 'BUENO').length;
-    const regulares = estados.filter(e => e === 'REGULAR').length;
-    const criticos = estados.filter(e => e === 'CRITICO').length;
-
-    let estadoGeneral;
-    if (criticos > 0) estadoGeneral = 'CRITICO';
-    else if (regulares > 1) estadoGeneral = 'REGULAR';
-    else if (buenos >= 2) estadoGeneral = 'BUENO';
-    else if (excelentes >= 3) estadoGeneral = 'EXCELENTE';
-    else estadoGeneral = 'BUENO';
-
-    return {
-      ...evaluaciones,
-      estadoGeneral,
-      puntuacion: (excelentes * 4 + buenos * 3 + regulares * 2 + criticos * 1) / 4
-    };
-  };
-
-  const evaluarParametro = (valor, rango) => {
-    const [min, max] = rango;
-    const centro = (min + max) / 2;
-    const tolerancia = (max - min) * 0.1; // 10% de tolerancia
-
-    if (valor >= min && valor <= max) {
-      if (Math.abs(valor - centro) <= tolerancia) return 'EXCELENTE';
-      return 'BUENO';
-    } else if (valor < min) {
-      const deficit = ((min - valor) / min) * 100;
-      return deficit > 20 ? 'CRITICO' : 'REGULAR';
-    } else {
-      const exceso = ((valor - max) / max) * 100;
-      return exceso > 20 ? 'CRITICO' : 'REGULAR';
-    }
-  };
-
-  const generarRecomendaciones = (cultivo, promedios, tendencias, evaluacion) => {
-    const recomendaciones = [];
-
-    // Recomendaciones por humedad
-    if (evaluacion.humedad === 'CRITICO') {
-      if (parseFloat(promedios.humedad) < 50) {
-        recomendaciones.push('🚨 URGENTE: Aumentar riego inmediatamente. Humedad crítica.');
-      } else {
-        recomendaciones.push('🚨 URGENTE: Reducir riego y mejorar drenaje. Exceso de humedad.');
-      }
-    } else if (evaluacion.humedad === 'REGULAR') {
-      recomendaciones.push('⚠️ Ajustar programa de riego para optimizar humedad del suelo.');
-    }
-
-    // Recomendaciones por pH
-    if (evaluacion.ph === 'CRITICO') {
-      if (parseFloat(promedios.ph) < 6.0) {
-        recomendaciones.push('🚨 Aplicar cal agrícola para corregir acidez del suelo.');
-      } else {
-        recomendaciones.push('🚨 Aplicar azufre o materia orgánica para reducir alcalinidad.');
-      }
-    }
-
-    // Recomendaciones por nitrógeno
-    if (evaluacion.nitrogeno === 'CRITICO') {
-      if (parseFloat(promedios.nitrogeno) < 100) {
-        recomendaciones.push('🚨 Aplicar fertilizante nitrogenado urgentemente.');
-      } else {
-        recomendaciones.push('🚨 Suspender fertilización nitrogenada temporalmente.');
-      }
-    }
-
-    // Recomendaciones por temperatura
-    if (evaluacion.temperatura === 'CRITICO') {
-      if (parseFloat(promedios.temperatura) > 35) {
-        recomendaciones.push('🚨 Implementar sombreado o riego por aspersión para reducir temperatura.');
-      } else {
-        recomendaciones.push('🚨 Considerar protección contra heladas o cultivos de cobertura.');
-      }
-    }
-
-    // Recomendaciones por tendencias
-    if (tendencias.humedad && Math.abs(parseFloat(tendencias.humedad)) > 10) {
-      recomendaciones.push(`📈 Tendencia de humedad: ${tendencias.humedad}% - Monitorear de cerca.`);
-    }
-
-    // Recomendaciones generales por cultivo
-    if (cultivo === 'Maíz' && evaluacion.estadoGeneral === 'EXCELENTE') {
-      recomendaciones.push('✅ Condiciones óptimas para maíz. Continuar con manejo actual.');
-    }
-
-    if (recomendaciones.length === 0) {
-      recomendaciones.push('✅ Condiciones dentro de rangos aceptables. Mantener monitoreo regular.');
-    }
-
-    return recomendaciones;
-  };
-
-  const generarAlertas = (promedios, tendencias) => {
-    const alertas = [];
-
-    // Alertas críticas
-    if (parseFloat(promedios.humedad) < 30 || parseFloat(promedios.humedad) > 90) {
-      alertas.push({ tipo: 'CRITICO', mensaje: 'Humedad en niveles críticos', parametro: 'humedad' });
-    }
-
-    if (parseFloat(promedios.ph) < 5.0 || parseFloat(promedios.ph) > 8.0) {
-      alertas.push({ tipo: 'CRITICO', mensaje: 'pH fuera de rango seguro', parametro: 'ph' });
-    }
-
-    if (parseFloat(promedios.temperatura) < 5 || parseFloat(promedios.temperatura) > 40) {
-      alertas.push({ tipo: 'CRITICO', mensaje: 'Temperatura extrema detectada', parametro: 'temperatura' });
-    }
-
-    // Alertas de tendencia
-    if (tendencias.humedad && Math.abs(parseFloat(tendencias.humedad)) > 15) {
-      alertas.push({ tipo: 'TENDENCIA', mensaje: `Cambio rápido en humedad: ${tendencias.humedad}%`, parametro: 'humedad' });
-    }
-
-    return alertas;
+    // Auto remove after 3 seconds (or 5 for loading)
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100%)';
+      setTimeout(() => document.body.removeChild(toast), 300);
+    }, type === 'info' ? 5000 : 3000);
   };
 
   const getStatusColor = (status) => {
@@ -326,6 +155,20 @@ const InsightsPanel = ({ selectedParcelaId = null }) => {
 
   return (
     <div className="space-y-6">
+      {/* Progress indicator when generating reports */}
+      {exportingReports.size > 0 && (
+        <div className="bg-blue-600 text-white p-3 rounded-lg flex items-center space-x-3 animate-pulse">
+          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span>
+            🧠 Generando {exportingReports.size} reporte{exportingReports.size > 1 ? 's' : ''} con análisis de IA... 
+            Esto puede tomar 5-10 segundos
+          </span>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-white">
           {selectedParcelaId ? `Insights - ${selectedParcelaId}` : 'Insights Generales'}
@@ -386,9 +229,29 @@ const InsightsPanel = ({ selectedParcelaId = null }) => {
                   </span>
                   <button
                     onClick={() => handleExportReport(insight.parcelaId)}
-                    className="px-3 py-1 text-xs bg-agro-green-600 text-white rounded hover:bg-agro-green-700"
+                    disabled={exportingReports.has(insight.parcelaId)}
+                    className={`px-3 py-1 text-xs rounded flex items-center space-x-1 transition-all ${
+                      exportingReports.has(insight.parcelaId)
+                        ? 'bg-gray-500 text-white cursor-not-allowed'
+                        : 'bg-agro-green-600 text-white hover:bg-agro-green-700'
+                    }`}
                   >
-                    Exportar IA
+                    {exportingReports.has(insight.parcelaId) ? (
+                      <>
+                        <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Generando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <span>Exportar IA</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
